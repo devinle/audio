@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en-US">
+	<head>
+		<title>10up Component Library | Audio</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<link href="../dist/audio.css" rel="stylesheet">
+	</head>
+	<body>
+		<div class="audio">
+			<audio controls>
+				<source src="songs/track.mp3" type="audio/mpeg">
+				<!-- <source src=".ogg" type="audio/ogg">
+				<source src=".wav" type="audio/wav"> -->
+				Your browser does not support the audio element.
+			</audio>
+			<div class="audio__controls">
+				<button class="audio__play">Play</button>
+				<button class="audio__pause">Pause</button>
+				<button class="audio__stop">Stop</button>
+				<button class="audio__mute">Mute</button>
+				<label for="volume">Volume</label>
+				<input type="range" min="1" max="100" value="50" class="audio__volume" id="volume">
+			</div>
+		</div> <!-- //.audio -->
+
+		<script src="../dist/audio.js"></script>
+
+	</body>
+</html>

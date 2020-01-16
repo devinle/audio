@@ -1,0 +1,51 @@
+{
+  "name": "@10up/component-audio",
+  "version": "1.0.0",
+  "description": "Accessible audio component",
+  "main": "index.js",
+  "scripts": {
+    "start": "npm install && npm run build",
+    "build": "webpack",
+    "watch": "webpack --watch",
+    "test": "jest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/10up/component-audio.git"
+  },
+  "keywords": [
+    "audio",
+    "component"
+  ],
+  "author": "10up",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/10up/component-audio/issues"
+  },
+  "homepage": "https://github.com/10up/component-audio#readme",
+  "devDependencies": {
+    "@10up/eslint-config": "^1.0.9",
+    "@babel/cli": "^7.2.3",
+    "@babel/core": "^7.4.0",
+    "@babel/preset-env": "^7.4.2",
+    "babel-eslint": "^9.0.0",
+    "babel-loader": "^8.0.5",
+    "browser-sync": "^2.26.7",
+    "browser-sync-webpack-plugin": "^2.2.2",
+    "css-loader": "^1.0.1",
+    "eslint": "^5.15.3",
+    "eslint-loader": "^2.1.2",
+    "jest": "^24.9.0",
+    "mini-css-extract-plugin": "^0.4.5",
+    "postcss": "^7.0.14",
+    "postcss-import": "^12.0.1",
+    "postcss-loader": "^3.0.0",
+    "postcss-preset-env": "^5.3.0",
+    "webpack": "^4.29.6",
+    "webpack-cli": "^3.3.0"
+  },
+  "dependencies": {
+    "@babel/polyfill": "^7.4.0",
+    "core-js": "^3.3.2"
+  }
+}
