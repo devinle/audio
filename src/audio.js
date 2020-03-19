@@ -17,9 +17,8 @@ export default class Audio {
 	 * Constructor method for this class.
 	 *
 	 * @param {string} selector - class or id
-	 * @param {object} options - options object
-	 * @returns {null}
-	 * */
+	 * @param {Object} options - options object
+	 */
 	constructor ( selector, options = {} ) {
 
 		// Exit if element not provided
@@ -31,7 +30,7 @@ export default class Audio {
 			onPause: null, // receives player intance
 			onStop: null, // receives player intance
 			onError: null, // receives player intance
-			console: false, // set true for console logging
+			debug: false, // set true for console logging
 			localStorage: true, // offline mode
 			sessionStorage: true,  // memory mode
 			...options,
@@ -51,21 +50,24 @@ export default class Audio {
 	}
 
 	/**
-	 * @function logError
-	 * Used to publish error message to the console
+	 * @function log
+	 * Used to publish message types to the console when debugging
 	 *
 	 * @param {string} message - message for console
 	 * @type {string} messageType - type of console
 	 */
-	logMessage( message, messageType = 'log' ) {
+	log( message, messageType = 'log' ) {
 
-		// If console available, output message
-		if ( this.settings.console ) {
-			console &&
-			console[ messageType ] &&
-			'function' === typeof console[ messageType ] &&
-			console[ messageType ]( `${this.prefix}: ${message}` );
-		}
+		// If debugging, and console available, output message
+		this.settings.debug &&
+		window.console &&
+		window.console[ messageType ] &&
+		'function' === typeof window.console[ messageType ] &&
+		window.console[ messageType ](
+			`%c${this.prefix}:%c ${message}`,
+			'background: red; color: white;',
+			'background: white; color: black;'
+		);
 	}
 
 	/**
@@ -84,26 +86,28 @@ export default class Audio {
 		if ( ! elements ) return;
 
 		// Loop through and setup individual players
-		for( let i = 0, lng = elements.length; i < lng; i++ ) {
+		for( let i = 0, lng = elements.length, player; i < lng; i++ ) {
 
 			// Destructure player element
-			const player = elements[i].querySelector( 'audio' );
+			player = elements[i].querySelector( 'audio' );
 
+			// If no player found skip current iteration
 			if ( ! player ) {
-				return this.logMessage( 'No <audio> element found.', 'error' );
+				this.log( 'No <audio> element found.', 'error' );
+				continue;
 			}
 
-			// Hide build in controls
+			// Hide built in controls
 			player.removeAttribute( 'controls' );
 
-			console.log( 'dfsdfjhsdkjhskd', player.currentSrc );
-
-			// Bind all custom container elements
-			this.setupControlsListeners( elements[i], player );
-
 			// Bind all native <audio> listeners
-			this.setupNativeListeners( player );
+			this.setupNativeListeners( elements[i], player );
 
+			// Bind custom controls
+			this.bindCustomControls( elements[i], player );
+
+			// Check if local store has history on this player
+			this.maybeInitFromStorage( player );
 		}
 	}
 
@@ -111,84 +115,116 @@ export default class Audio {
 	 * @function setupListeners
 	 * Bind listeners to a player instance
 	 *
-	 * @param {object} player - Player instance
+	 * @param {Object} element - container housing <audio> player
+	 * @param {Object} player - Player instance
 	 */
-	setupNativeListeners( player ) {
+	setupNativeListeners( element, player ) {
 		player.addEventListener( 'loadstart', () => this.handleLoadStart( player ) );
-		player.addEventListener( 'ended', () => console.log( 'ended' ) );
+		// player.addEventListener( 'ended', () => this.log( 'ended' ) );
 		player.addEventListener( 'pause', () => this.handlePause( player ) );
 		player.addEventListener( 'play', () => this.handlePlay( player ) );
-		player.addEventListener( 'playing', () => console.log( 'playing' ) );
-		player.addEventListener( 'progress', () => console.log( 'downloading' ) );
-		player.addEventListener( 'seeking', () => console.log( 'seeking' ) );
-		player.addEventListener( 'seeked', () => console.log( 'seeking complete' ) );
+		// player.addEventListener( 'playing', () => this.log( 'playing' ) );
+		// player.addEventListener( 'progress', () => this.log( 'downloading' ) );
+		// player.addEventListener( 'seeking', () => this.log( 'seeking' ) );
+		// player.addEventListener( 'seeked', () => this.log( 'seeking complete' ) );
 		player.addEventListener( 'timeupdate', () => this.handleTimeUpdate( player ) );
-		player.addEventListener( 'volumechange', () => console.log ( 'volume changed' ) );
+		player.addEventListener( 'volumechange', event => this.handleVolume( element, event ) );
 		player.addEventListener( 'error', () => this.handleError( player ) );
 	}
 
 	/**
+	 * @function maybeInitFromStorage
+	 * Used to fetch player instance values from local storage.
 	 *
-	 * @param {object} player - <audio> player inside of the container
+	 * @param {Object} player - <audio> player inside of the container
 	 */
-	maybeDoStorage( player ) {
-		if ( ! this.localStorage ) {
-			return;
+	maybeInitFromStorage( player ) {
+
+		// If no local storage exit
+		if ( ! this.localStorage ) return;
+
+		// Destructure currentSrc from player instance as key ref from storage
+		const { currentSrc } = player;
+
+		// Fetch player values from localStorage
+		const cache = this.localStorage.getItem( currentSrc );
+
+		// If no cache exit
+		if ( ! cache ) return;
+
+		// Destructure values from cache
+		const {
+			time = null,
+			volume = null,
+		} = JSON.parse( cache );
+
+		// If time is found, set time
+		if ( time ) {
+			this.currentTime( player, time );
 		}
-		const src = player.currentSrc;
-		const cache = this.localStorage.getItem( src );
-		this.localStorage.setItem( src, JSON.stringify( cache ) );
-		// this.logMessage( src );
+
+		// If volume is found, set volume
+		if ( volume ) {
+			this.volume( player, volume );
+		}
 	}
 
 	/**
+	 * @function saveToStorage
+	 * Used to save the player instance values to local storage.
 	 *
-	 * @param {object} player - <audio> player inside of the container
-	 * @returns {object} - local storage value
+	 * @param {Object} player - <audio> player inside of the container
+	 * @returns {Object} - local storage value
 	 */
 	saveToStorage( player ) {
+
+		// Destructure currentSrc from player instance as key for storage
 		const { currentSrc } = player;
+
+		// Set local storage for time, volume and paused
 		this.localStorage.setItem(
 			currentSrc,
 			JSON.stringify( {
 				time: this.getCurrentTime( player ),
 				volume: this.getCurrentVolume( player ),
+				paused: this.getPaused( player ),
 			} )
 		);
 	}
 
 	/**
-	 * @function setupContainerListeners
-	 * Bind listeners to the player instance container
+	 * @function bindCustomControls
+	 * Delegates actions by listening to the player instance container
 	 *
-	 * @param {object} element - container housing <audio> player
-	 * @param {object} player - <audio> player inside of the container
+	 * @param {Object} element - container housing <audio> player
+	 * @param {Object} player - <audio> player inside of the container
 	 */
-	setupControlsListeners( element, player ) {
+	bindCustomControls( element, player ) {
 
-		// Custom Play button bindings
-		const play = element.querySelector( '.audio__play' );
-		if ( play ) {
-			play.addEventListener( 'click', () => this.play( player ) );
-		}
+		// Delegate click to player container (element)
+		element.addEventListener( 'click', e => {
 
-		// Custom Stop button bindings
-		const stop = element.querySelector( '.audio__stop' );
-		if ( stop ) {
-			stop.addEventListener( 'click', () => this.stop( player ) );
-		}
+			// Determine click action
+			const action = e.target.getAttribute( 'data-action' );
 
-		// Custom Pause button bindings
-		const pause = element.querySelector( '.audio__pause' );
-		if ( pause ) {
-			pause.addEventListener( 'click', () => this.pause( player ) );
-		}
+			// If no action exit
+			if ( ! action ) return;
+
+			// If this class contains a method of action, run it
+			if (
+				this[ action ] &&
+				'function' === typeof this[ action ]
+			) {
+				this[ action ]( player, e.target.value );
+			}
+		} );
 	}
 
 	/**
 	 * @function handleCallback
-	 * Higher order function to decorate with eventName.
-	 * Useful for shared callback logic.
+	 * All custom callbacks pipe through here first. This normalizes a
+	 * safety check to test if the method exists, and also sets up
+	 * a player parameter that is provided to each custom event handler
 	 *
 	 * @param {string} eventName - Name of event callback to trigger
 	 * @returns {function} - Callback method
@@ -199,42 +235,64 @@ export default class Audio {
 		if ( ! eventName || 'string' !== typeof eventName ) return;
 
 		// Return
-		return ( player ) => {
-			if (
+		return player =>
+			(
 				this.settings[ eventName ] &&
-				'function' === typeof this.settings[ eventName ]
-			) {
-				this.settings[ eventName ]( player );
-			}
-		};
+				'function' === typeof this.settings[ eventName ] &&
+				this.settings[ eventName ]( player )
+			);
 	}
 
 	/**
 	 * @function handleTimeUpdate
 	 * Handle the timeupdate event
 	 *
-	 * @param {object} player - Player instance
+	 * @param {Object} player - Player instance
 	 */
 	handleTimeUpdate( player ) {
 		this.saveToStorage( player );
-		//this.logMessage( `time updated ${this.getCurrentTime( player )}` );
+		this.log( `time updated ${this.getCurrentTime( player )}` );
+	}
+
+	/**
+	 * @function handleVolume
+	 * Handle the volume event
+	 *
+	 * @param {Object} element - Player instance container
+	 * @param {Object} event - Event object
+	 */
+	handleVolume( element, event ) {
+
+		// Destructure volume from event
+		const { volume = null } = event.target;
+
+		// If no volume found exit
+		if ( ! volume ) return;
+
+		// Get volume slider controller
+		const volumeSlider = element.querySelector( '.audio__volume' );
+
+		// Update its volume setting
+		volumeSlider.value = volume;
+
+		this.log( `volume updated ${volume}` );
 	}
 
 	/**
 	 * @function handleLoadStart
 	 * Handle the loadstart event
 	 *
-	 * @param {object} player - Player instance
+	 * @param {Object} player - Player instance
 	 */
 	handleLoadStart( player ) {
-		this.logMessage( `load started ${player}` );
+		this.log( `load started ${player}` );
 	}
 
 	/**
 	 * @function handlePlay
 	 * Handle the play event
 	 *
-	 * @param {object} player - Player instance
+	 * @param {Object} player - Player instance
 	 */
 	handlePlay( player ) {
 
@@ -246,7 +304,7 @@ export default class Audio {
 	 * @function handlePause
 	 * Handle the play event
 	 *
-	 * @param {object} player - Player instance
+	 * @param {Object} player - Player instance
 	 */
 	handlePause( player ) {
 
@@ -258,7 +316,7 @@ export default class Audio {
 	 * @function handleError
 	 * Handle the error event
 	 *
-	 * @param {object} player - Player instance
+	 * @param {Object} player - Player instance
 	 */
 	handleError( player ) {
 
@@ -268,9 +326,9 @@ export default class Audio {
 
 	/**
 	 * @function getDuration
-	 * Get the player instance duration
+	 * GETTER: duration of player instance
 	 *
-	 * @param {object} player - Player instance
+	 * @param {Object} player - Player instance
 	 */
 	getDuration( player ) {
 		return player.duration;
@@ -278,50 +336,61 @@ export default class Audio {
 
 	/**
 	 * @function getCurrentTime
-	 * Get the player instance current time
+	 * GETTER: currentTime of player instance
 	 *
-	 * @param {object} player - Player instance
+	 * @param {Object} player - Player instance
 	 */
 	getCurrentTime( player ) {
 		return player.currentTime;
 	}
 
 	/**
-	 * @function setCurrentTime
-	 * Set the player instance current time.
-	 * Useful when stopping, to reset to 0.
+	 * @function getCurrentVolume
+	 * GETTER: volume of player instance
 	 *
-	 * @param {object} player - Player instance
-	 * @param {number} value - Time in seconds to set player to
-	 */
-	setCurrentTime( player, value = 0 ) {
-		player.currentTime = value;
-	}
-
-	/**
-	 *
-	 * @param {object} player
+	 * @param {Object} player
 	 */
 	getCurrentVolume( player ) {
 		return player.volume;
 	}
 
 	/**
-	 * @function setVolume
-	 * Set the player instance volume
+	 * @function getPaused
+	 * GETTER: is player paused
 	 *
-	 * @param {object} player - Player instance
+	 * @param {Object} player
+	 */
+	getPaused( player ) {
+		return player.paused;
+	}
+
+	/**
+	 * @function currentTime
+	 * SETTER: set player instance currentTime
+	 *
+	 * @param {Object} player - Player instance
+	 * @param {number} value - Time in seconds to set player to
+	 */
+	currentTime( player, value = 0 ) {
+		player.currentTime = value;
+	}
+
+	/**
+	 * @function volume
+	 * SETTER: set player instance volume
+	 *
+	 * @param {Object} player - Player instance
 	 * @param {float} value - Volume level 0.0 - 1.0
 	 */
-	setVolume( player, value = 0.5 ) {
+	volume( player, value = 0.5 ) {
 		player.volume = value;
 	}
 
 	/**
 	 * @function play
-	 * Make the player instance play
+	 * METHOD: play the player instance
 	 *
-	 * @param {object} player - Player instance
+	 * @param {Object} player - Player instance
 	 */
 	play( player ) {
 		player.play();
@@ -329,23 +398,41 @@ export default class Audio {
 
 	/**
 	 * @function pause
-	 * Make the player instance pause
+	 * METHOD: pause the player instance
 	 *
-	 * @param {object} player - Player instance
+	 * @param {Object} player - Player instance
 	 */
 	pause( player ) {
 		player.pause();
 	}
 
 	/**
-	 * @function stop
-	 * Make the player instance stop
+	 * @function mute
+	 * METHOD: mute the player instance
 	 *
-	 * @param {object} player - Player instance
+	 * @param {Object} player - Player instance
+	 */
+	mute( player ) {
+
+		// Toggle the muted setting
+		player.muted = ! player.muted;
+	}
+
+	/**
+	 * @function stop
+	 * METHOD: stop the player instance
+	 *
+	 * @param {Object} player - Player instance
 	 */
 	stop( player ) {
+
+		// Must choose pause, no stop API
 		player.pause();
-		this.setCurrentTime( player, 0 );
+
+		// Reset time
+		this.currentTime( player, 0 );
+
+		// Custom callback handler
 		this.handleCallback( 'onStop' )( player );
 	}
 
@@ -353,7 +440,7 @@ export default class Audio {
 	 * @function addTextTrack
 	 * add a text track to a specified element
 	 *
-	 * @param {object} player - Player instance
+	 * @param {Object} player - Player instance
 	 * @param {string} kind - subtitles|caption|descriptions|chapters|metadata
 	 * @param {string} label - used to identify the track
 	 * @param {string} language - two letter language code
