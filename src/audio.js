@@ -100,6 +100,10 @@ export default class Audio {
 			// Hide built in controls
 			player.removeAttribute( 'controls' );
 
+			let template = this.myTemplate('test');
+
+			this.appendMarkup(elements[i], template)
+
 			// Bind all native <audio> listeners
 			this.setupNativeListeners( elements[i], player );
 
@@ -448,5 +452,25 @@ export default class Audio {
 	 */
 	addTextTrack ( player, kind, label, language='en' ) {
 		player.addTextTrack( kind, label, language );
+	}
+
+	/**
+	 * @function myTemplate
+	 * add button to controls
+	 *
+	 * @param {string} tag - type of button adding to the controls
+	 */
+	myTemplate ( tag ) {
+		return `<button data-action="${tag}" class="audio__${tag}">${tag}</button>`;
+	}
+
+	/**
+	 * @function appendMarkup
+	 * append markup to audio controls container
+	 *
+	 */
+	appendMarkup ( element, template ) {
+		const audioContainer = element.querySelector( '.audio__controls' );
+		audioContainer.appendChild(template) 
 	}
 }
