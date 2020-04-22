@@ -130,6 +130,13 @@ export default class Audio {
 				this.appendMarkup( elements[i], templateMute );
 			}
 
+			// Add Volume Control
+			const volume = 'volume';
+			
+			const templateVolume = this.buildVolumeControl ( volume );
+
+			this.appendMarkup( elements[i], templateVolume );
+
 			// Bind all native <audio> listeners
 			this.setupNativeListeners( elements[i], player );
 
@@ -499,6 +506,37 @@ export default class Audio {
 
 		return template;
 
+	}
+
+	/**
+	 * @function buildVolumeControl
+	 * build button controls
+	 *
+	 * @param {string} tag - type of button adding to the controls
+	 */
+	buildVolumeControl ( tag ) {
+
+		const input = document.createElement( 'input' );
+		const label = document.createElement( 'label' );
+		const text = document.createTextNode( tag );
+
+		label.appendChild( text ); 
+		label.setAttribute( 'for', tag ); 
+
+		input.setAttribute( 'data-action', tag );
+		input.setAttribute( 'type', 'range' );
+		input.setAttribute( 'min', '0' );
+		input.setAttribute( 'max', '1' );
+		input.setAttribute( 'step', '0.1' );
+		input.setAttribute( 'value', '0.5' );
+		
+		const className = `audio__${tag}`;
+		input.setAttribute( 'class', className );
+
+		label.appendChild( input ); 
+
+		return label;
+		
 	}
 
 	/**
