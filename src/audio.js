@@ -26,10 +26,12 @@ export default class Audio {
 
 		// Merge settings and options
 		this.settings = {
-			onPlay: null, // receives player intance
-			onPause: null, // receives player intance
-			onStop: null, // receives player intance
-			onError: null, // receives player intance
+			onPlay: null, // receives player instance
+			onPause: null, // receives player instance
+			onStop: null, // receives player instance
+			onError: null, // receives player instance
+			showMute: false,
+			showStop: false,
 			debug: false, // set true for console logging
 			localStorage: true, // offline mode
 			sessionStorage: true,  // memory mode
@@ -109,6 +111,24 @@ export default class Audio {
 
 			this.appendMarkup( elements[i], templatePlay );
 			this.appendMarkup( elements[i], templatePause );
+
+			// Add Stop Control if Selected
+			if( this.settings.showStop ) {
+				const stop = 'stop';
+	
+				const templateStop = this.buildControl( stop );
+	
+				this.appendMarkup( elements[i], templateStop );
+			}
+
+			// Add Mute Control if Selected
+			if( this.settings.showMute ) {
+				const mute = 'mute';
+	
+				const templateMute = this.buildControl( mute );
+	
+				this.appendMarkup( elements[i], templateMute );
+			}
 
 			// Bind all native <audio> listeners
 			this.setupNativeListeners( elements[i], player );

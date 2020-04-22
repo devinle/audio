@@ -12,5 +12,7 @@ new window.TenUp.audio( '.audio', {
 	onPause: player => console.log( 'custom pause function', player ),
 	onStop: player => console.log( 'custom stop function', player ),
 	onError: player => console.log( 'custom error function', player ),
+	showStop: false,
+	showMute: false,
 	debug: true,
 } );
