@@ -6,13 +6,13 @@ if ( 'object' !== typeof window.TenUp ) {
 
 window.TenUp.audio = Audio;
 
-
 new window.TenUp.audio( '.audio', {
-	onPlay: player => console.log( 'custom play function', player ),
-	onPause: player => console.log( 'custom pause function', player ),
-	onStop: player => console.log( 'custom stop function', player ),
-	onError: player => console.log( 'custom error function', player ),
-	showStop: false,
-	showMute: false,
+	onplay: player => console.log( 'custom play function', player ),
+	onpause: player => console.log( 'custom pause function', player ),
+	onstop: player => console.log( 'custom stop function', player ),
+	onerror: player => console.log( 'custom error function', player ),
+	onvolumechange: player => console.log( 'custom volume function', player ),
+	showStop: true,
+	showMute: true,
 	debug: true,
 } );
