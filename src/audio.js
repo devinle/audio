@@ -545,6 +545,7 @@ export default class Audio {
 	/**
 	 * @function volumeFactory
 	 * build volume slider control
+	 * @returns {object} Volume element
 	 */
 	volumeFactory () {
 
