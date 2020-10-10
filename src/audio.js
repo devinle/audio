@@ -40,6 +40,8 @@ export default class Audio {
 				pause: 'Pause',
 				mute: 'Mute',
 				volume: 'Volume',
+				currentTime: 'Current Time',
+				totalTime: 'Total Time'
 			},
 			onloadstart: null,
 			onplay: null,
@@ -55,6 +57,7 @@ export default class Audio {
 			onvolumechange: null,
 			showMute: false,
 			showStop: false,
+			showTimer: false,
 			debug: false, // set true for console logging
 			localStorage: true, // offline mode
 			...options,
@@ -194,6 +197,15 @@ export default class Audio {
 		// Add Volume
 		const templateVolume = this.volumeFactory();
 		templateVolume && this.appendTemplate( element, templateVolume );
+
+		// Maybe Add Timers
+		if( this.settings.showTimer ) {
+			const currentTimeTemplate = this.timerFactory( 'currentTime' );
+			currentTimeTemplate && this.appendTemplate( element, currentTimeTemplate );
+
+			const totalTimeTemplate = this.timerFactory( 'totalTime' );
+			totalTimeTemplate && this.appendTemplate( element, totalTimeTemplate );
+		}
 	}
 
 	/**
@@ -242,7 +254,7 @@ export default class Audio {
 			switch( this.supportedEvents[i] ) {
 
 					case 'timeupdate':
-						fn = () => this.timeupdateHandler( player );
+						fn = () => this.timeupdateHandler( element, player );
 						break;
 
 					case 'volumechange':
@@ -351,10 +363,25 @@ export default class Audio {
 	 * @function timeupdateHandler
 	 * Handle the timeupdate event
 	 *
-	 * @param {Object} player - Player instance
+	 * @param {Object} element - Player container
+	 * @param {Object} player - Native Player instance
 	 */
-	timeupdateHandler( player ) {
+	timeupdateHandler( element, player ) {
 		this.saveToStorage( player );
+
+		const currentTime = this.getCurrentTime( player );
+		const duration = this.getDuration( player );
+
+		const currentTimeElement = element.querySelector( `${this.settings.className}__currentTime` );
+		const minutes = Math.floor( currentTime / 60 );
+		const seconds = Math.floor( currentTime - minutes * 60 );
+		currentTimeElement.value = `${minutes}:${seconds}`;
+
+		const totalTime = element.querySelector( `${this.settings.className}__totalTime` );
+		const dMinutes = Math.floor( duration / 60 );
+		const dSeconds = Math.floor( duration - dMinutes * 60 );
+		totalTime.value = `${dMinutes}:${dSeconds}`;
+
 		this.customCallBackHandler( 'ontimeupdate' );
 		this.log( `time updated ${this.getCurrentTime( player )}` );
 	}
@@ -573,6 +600,33 @@ export default class Audio {
 		// build label
 		const label = document.createElement( 'label' );
 		const text = document.createTextNode( this.settings.labels['volume'] );
+		label.appendChild( text );
+		label.setAttribute( 'for', uid );
+		label.appendChild( input );
+		return label;
+	}
+
+	/**
+	 * @function timerFactory
+	 * build timer display
+	 *
+	 * @param {string} timerType - Current or Duration
+	 * @returns {object} Volume element
+	 */
+	timerFactory ( timerType ) {
+
+		// generate a unique id
+		const uid = `timer-${this.uid()}`;
+
+		// build input
+		const input = document.createElement( 'input' );
+		input.setAttribute( 'id', uid );
+		input.setAttribute( 'type', 'text' );
+		input.setAttribute( 'class', `${this.settings.name}__${timerType}` );
+
+		// build label
+		const label = document.createElement( 'label' );
+		const text = document.createTextNode( this.settings.labels[timerType] );
 		label.appendChild( text );
 		label.setAttribute( 'for', uid );
 		label.appendChild( input );
