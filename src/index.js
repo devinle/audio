@@ -12,8 +12,5 @@ new window.TenUp.audio( '.audio', {
 	onstop: player => console.log( 'custom stop function', player ),
 	onerror: player => console.log( 'custom error function', player ),
 	onvolumechange: player => console.log( 'custom volume function', player ),
-	showStop: true,
-	showMute: true,
-	showTimer: true,
 	debug: true,
 } );

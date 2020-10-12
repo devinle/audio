@@ -8,7 +8,7 @@
  * Create an audio UI.
  *
  * @param {string} selector Element selector for audio container.
- * @param {Object} options Object of optional callbacks.
+ * @param {object} options Object of optional callbacks.
  */
 export default class Audio {
 
@@ -17,7 +17,7 @@ export default class Audio {
 	 * Constructor method for this class.
 	 *
 	 * @param {string} selector - class
-	 * @param {Object} options - options object
+	 * @param {object} options - options object
 	 */
 	constructor ( selector, options = {} ) {
 
@@ -30,19 +30,20 @@ export default class Audio {
 			return;
 		}
 
+		// Set prefix for logging
+		this.prefix = '@10up/Audio';
+
 		// Merge settings and options
 		this.settings = {
 			className: selector,
 			name: selector.replace( '.', '' ),
-			labels: {
-				play: 'Play',
-				stop: 'Stop',
-				pause: 'Pause',
-				mute: 'Mute',
-				volume: 'Volume',
-				currentTime: 'Current Time',
-				totalTime: 'Total Time'
-			},
+			playLabel: 'Play',
+			stopLabel: 'Stop',
+			pauseLabel: 'Pause',
+			muteLabel: 'Mute',
+			volumeLabel: 'Volume',
+			currentTimeLabel: 'Current Time',
+			totalTimeLabel: 'Total Time',
 			onloadstart: null,
 			onplay: null,
 			onpause: null,
@@ -55,16 +56,17 @@ export default class Audio {
 			onseeked: null,
 			ontimeupdate: null,
 			onvolumechange: null,
-			showMute: false,
-			showStop: false,
-			showTimer: false,
+			showMute: true,
+			showStop: true,
+			showTimer: true,
+			showVolume: true,
 			debug: false, // set true for console logging
 			localStorage: true, // offline mode
 			...options,
 		};
 
-		// Set prefix for logging
-		this.prefix = '@10up/Audio';
+		// cache
+		this.cache = {};
 
 		// Reference local storage
 		this.localStorage = this.settings.localStorage && window.localStorage || null;
@@ -93,11 +95,9 @@ export default class Audio {
 	 * Used to publish message types to the console when debugging
 	 *
 	 * @param {string} message - message for console
-	 * @type {string} messageType - type of console
+	 * @param {string} messageType - type of console to trigger
 	 */
 	log( message, messageType = 'log' ) {
-
-		// If debugging, and console available, output message
 		this.settings.debug &&
 		window.console &&
 		window.console[ messageType ] &&
@@ -128,77 +128,76 @@ export default class Audio {
 	 * @returns {null}
 	 */
 	initialize ( selector ) {
-
-		// Get all matching elements in the DOM
 		const elements = document.querySelectorAll( selector );
-
-		// If no elements found exit
 		if ( ! elements.length ) return;
-
-		// Loop through and setup individual players
 		for( let i = 0, lng = elements.length, player; i < lng; i++ ) {
-
-			// select native player element
 			player = elements[i].querySelector( 'audio' );
-
-			// If no player found skip current iteration
 			if ( ! player ) {
 				this.log( 'No native <audio> element found.', 'error' );
 				continue;
 			}
-
-			// Add custom UI controls (play, pause, stop, mute, volume)
 			this.addCustomControls( elements[i], player );
-
-			// Bind handlers to the custom UI controls through event delegation
 			this.delegateCustomControlsListeners( elements[i], player );
-
-			// Bind all native supported listeners to their associated custom callbacks
 			this.bindCustomCallbacks( elements[i], player );
-
-			// Check if local store has history on this player
-			// Wait for loadstart to assure the audio player is prepped
 			player.addEventListener( 'loadstart', () => this.maybeInitFromStorage( player ) );
 		}
 	}
 
 	/**
-	 * @function addCustomControls
-	 * Customize the UI controls of the audio player
-	 *
-	 * @param {Object} element - container housing <audio> player
-	 * @param {Object} player - Player instance
+	 * Add a play button
+	 * @param {object} element - custom audio element
 	 */
-	addCustomControls( element, player ) {
-
-		// Hide built in controls
-		player.removeAttribute( 'controls' );
-
-		// Add Play
+	addPlayButton( element ) {
 		const templatePlay = this.buttonFactory( 'play' );
 		templatePlay && this.appendTemplate( element, templatePlay );
+	}
 
-		// Add Pause
+	/**
+	 * Add a pause button
+	 * @param {object} element - custom audio element
+	 */
+	addPauseButton( element ) {
 		const templatePause = this.buttonFactory( 'pause' );
 		templatePause && this.appendTemplate( element, templatePause );
+	}
 
-		// Maybe Add Stop
+	/**
+	 * Maybe add a volume button
+	 * @param {object} element - custom audio element
+	 */
+	maybeAddVolumeButton( element ) {
+		if( this.settings.showVolume ) {
+			const templateVolume = this.volumeFactory();
+			templateVolume && this.appendTemplate( element, templateVolume );
+		}
+	}
+
+	/**
+	 * Maybe add a stop button
+	 * @param {object} element - custom audio element
+	 */
+	maybeAddStopButton( element ) {
 		if( this.settings.showStop ) {
 			const templateStop = this.buttonFactory( 'stop' );
 			templateStop && this.appendTemplate( element, templateStop );
 		}
+	}
 
-		// Maybe Add Mute
+	/**
+	 * Maybe add a mute button
+	 * @param {object} element - custom audio element
+	 */
+	maybeAddMuteButton( element ) {
 		if( this.settings.showMute ) {
 			const templateMute = this.buttonFactory( 'mute' );
 			templateMute && this.appendTemplate( element, templateMute );
 		}
-
-		// Add Volume
-		const templateVolume = this.volumeFactory();
-		templateVolume && this.appendTemplate( element, templateVolume );
-
-		// Maybe Add Timers
+	}
+	/**
+	 * Maybe add timer
+	 * @param {object} element - custom audio element
+	 */
+	maybeAddTimer( element ) {
 		if( this.settings.showTimer ) {
 			const currentTimeTemplate = this.timerFactory( 'currentTime' );
 			currentTimeTemplate && this.appendTemplate( element, currentTimeTemplate );
@@ -209,27 +208,41 @@ export default class Audio {
 	}
 
 	/**
+	 * @function addCustomControls
+	 * Customize the UI controls of the audio player
+	 *
+	 * @param {object} element - container housing <audio> player
+	 * @param {object} player - Player instance
+	 */
+	addCustomControls( element, player ) {
+
+		// Hide native controls
+		player.removeAttribute( 'controls' );
+
+		// Add custom controls
+		this.addPlayButton( element );
+		this.addPauseButton( element );
+		this.maybeAddStopButton( element );
+		this.maybeAddMuteButton( element );
+		this.maybeAddVolumeButton( element );
+		this.maybeAddTimer( element );
+
+	}
+
+	/**
 	 * @function delegateCustomControlsListeners
 	 * Delegates actions by listening to each player instance's container.
 	 * If the target action method exists, invoke. This sets up the audio container
 	 * as the event delegator.
 	 *
-	 * @param {Object} element - container housing <audio> player
-	 * @param {Object} player - <audio> player inside of the container
+	 * @param {object} element - container housing <audio> player
+	 * @param {object} player - <audio> player inside of the container
 	 */
 	delegateCustomControlsListeners( element, player ) {
-
-		// Delegate click to player container (element)
 		element.addEventListener( 'click', e => {
-
-			// Determine click action
 			const action = e.target.getAttribute( 'data-player-action' );
-
-			// If no action exit
-			if ( ! action ) return;
-
-			// If this class contains a method of action, invoke it
 			if (
+				action &&
 				this[ action ] &&
 				'function' === typeof this[ action ]
 			) {
@@ -242,13 +255,13 @@ export default class Audio {
 	 * @function bindCustomCallbacks
 	 * Bind native audio element events to custom callbacks.
 	 *
-	 * @param {Object} element - container housing <audio> player
-	 * @param {Object} player - Player instance
+	 * @param {object} element - container housing <audio> player
+	 * @param {object} player - Player instance
 	 */
 	bindCustomCallbacks( element, player ) {
 
 		// loop through supported events
-		for( let i = 0, fn = null, lng = this.supportedEvents.length; i < lng; i++ ) {
+		for( let i = 0, lng = this.supportedEvents.length, fn = null; i < lng; i++ ) {
 
 			// catch timeupdate or volumechange, else business as usual
 			switch( this.supportedEvents[i] ) {
@@ -266,21 +279,18 @@ export default class Audio {
 						break;
 			}
 
-			// if function is defined, bind it
-			if ( fn ) {
-				player.addEventListener(
-					this.supportedEvents[i],
-					fn
-				);
-			}
+			player.addEventListener(
+				this.supportedEvents[i],
+				fn
+			);
 		}
 	}
 
 	/**
 	 * @function maybeInitFromStorage
-	 * Used to fetch player instance values from local storage.
+	 * Used to fetch and set player instance values from local storage.
 	 *
-	 * @param {Object} player - <audio> player inside of the container
+	 * @param {object} player - <audio> player inside of the container
 	 */
 	maybeInitFromStorage( player ) {
 
@@ -300,16 +310,19 @@ export default class Audio {
 		const {
 			time = null,
 			volume = null,
+			paused = null,
 		} = JSON.parse( cache );
 
-		// If time is found, set time
 		if ( time ) {
 			this.currentTime( player, time );
 		}
 
-		// If volume is found, set volume
 		if ( volume ) {
 			this.volume( player, volume );
+		}
+
+		if ( paused ) {
+			this.pause( player );
 		}
 	}
 
@@ -320,14 +333,13 @@ export default class Audio {
 	 * a player parameter that is provided to each custom event handler
 	 *
 	 * @param {string} eventName - Name of event callback to trigger
-	 * @returns {function} - Callback method (typically on<name> ie. onplay)
+	 * @returns {function} - Callback method
 	 */
 	customCallBackHandler( eventName = null ) {
 
 		// Exit if no eventName provided
 		if ( ! eventName || 'string' !== typeof eventName ) return;
 
-		// Return
 		return player =>
 			(
 				this.settings[ eventName ] &&
@@ -340,15 +352,11 @@ export default class Audio {
 	 * @function saveToStorage
 	 * Used to save the player instance values to local storage.
 	 *
-	 * @param {Object} player - <audio> player inside of the container
-	 * @returns {Object} - local storage value
+	 * @param {object} player - <audio> player inside of the container
+	 * @returns {object} - local storage value
 	 */
 	saveToStorage( player ) {
-
-		// Destructure currentSrc from player instance as key for storage
 		const { currentSrc } = player;
-
-		// Set local storage for time, volume and paused
 		this.localStorage.setItem(
 			currentSrc,
 			JSON.stringify( {
@@ -363,8 +371,8 @@ export default class Audio {
 	 * @function timeupdateHandler
 	 * Handle the timeupdate event
 	 *
-	 * @param {Object} element - Player container
-	 * @param {Object} player - Native Player instance
+	 * @param {object} element - Player container
+	 * @param {object} player - Native Player instance
 	 */
 	timeupdateHandler( element, player ) {
 		this.saveToStorage( player );
@@ -373,14 +381,18 @@ export default class Audio {
 		const duration = this.getDuration( player );
 
 		const currentTimeElement = element.querySelector( `${this.settings.className}__currentTime` );
-		const minutes = Math.floor( currentTime / 60 );
-		const seconds = Math.floor( currentTime - minutes * 60 );
-		currentTimeElement.value = `${minutes}:${seconds}`;
+		if ( currentTimeElement ) {
+			const minutes = Math.floor( currentTime / 60 );
+			const seconds = Math.floor( currentTime - minutes * 60 );
+			currentTimeElement.value = `${minutes}:${seconds}`;
+		}
 
 		const totalTime = element.querySelector( `${this.settings.className}__totalTime` );
-		const dMinutes = Math.floor( duration / 60 );
-		const dSeconds = Math.floor( duration - dMinutes * 60 );
-		totalTime.value = `${dMinutes}:${dSeconds}`;
+		if ( totalTime ) {
+			const dMinutes = Math.floor( duration / 60 );
+			const dSeconds = Math.floor( duration - dMinutes * 60 );
+			totalTime.value = `${dMinutes}:${dSeconds}`;
+		}
 
 		this.customCallBackHandler( 'ontimeupdate' );
 		this.log( `time updated ${this.getCurrentTime( player )}` );
@@ -390,29 +402,19 @@ export default class Audio {
 	 * @function volumechangeHandler
 	 * Handle the volume event
 	 *
-	 * @param {Object} element - Player instance container
-	 * @param {Object} event - Event object
+	 * @param {object} element - Player instance container
+	 * @param {object} event - Event object
 	 */
 	volumechangeHandler( element, event ) {
-
-		// Destructure volume from event
 		const { volume = null } = event.target;
-
-		// If no volume found exit
 		if ( ! volume ) return;
 
 		// Get volume slider controller
 		const volumeSlider = element.querySelector( `${this.settings.className}__volume` );
-
-		// If no volumeSlider, abandon
 		if ( !volumeSlider ) return;
-
-		// Update its volume setting
 		volumeSlider.value = volume;
 
-		// Invoke custom callback
 		this.customCallBackHandler( 'onvolumechange' );
-
 		this.log( `volume updated ${volume}` );
 	}
 
@@ -420,7 +422,7 @@ export default class Audio {
 	 * @function getDuration
 	 * get duration of player instance
 	 *
-	 * @param {Object} player - Player instance
+	 * @param {object} player - Player instance
 	 */
 	getDuration( player ) {
 		return player.duration;
@@ -430,7 +432,7 @@ export default class Audio {
 	 * @function getCurrentTime
 	 * get currentTime of player instance
 	 *
-	 * @param {Object} player - Player instance
+	 * @param {object} player - Player instance
 	 */
 	getCurrentTime( player ) {
 		return player.currentTime;
@@ -440,7 +442,7 @@ export default class Audio {
 	 * @function getCurrentVolume
 	 * get volume of player instance
 	 *
-	 * @param {Object} player
+	 * @param {object} player
 	 */
 	getCurrentVolume( player ) {
 		return player.volume;
@@ -450,7 +452,7 @@ export default class Audio {
 	 * @function getPaused
 	 * check if player paused
 	 *
-	 * @param {Object} player
+	 * @param {object} player
 	 */
 	getPaused( player ) {
 		return player.paused;
@@ -460,7 +462,7 @@ export default class Audio {
 	 * @function currentTime
 	 * set player instance currentTime
 	 *
-	 * @param {Object} player - Player instance
+	 * @param {object} player - Player instance
 	 * @param {number} value - Time in seconds to set player to
 	 */
 	currentTime( player, value = 0 ) {
@@ -471,7 +473,7 @@ export default class Audio {
 	 * @function volume
 	 * set player instance volume
 	 *
-	 * @param {Object} player - Player instance
+	 * @param {object} player - Player instance
 	 * @param {float} value - Volume level 0.0 - 1.0
 	 */
 	volume( player, value = 0.5 ) {
@@ -482,7 +484,7 @@ export default class Audio {
 	 * @function play
 	 * play the player instance
 	 *
-	 * @param {Object} player - Player instance
+	 * @param {object} player - Player instance
 	 */
 	play( player ) {
 		player.play();
@@ -492,7 +494,7 @@ export default class Audio {
 	 * @function pause
 	 * pause the player instance
 	 *
-	 * @param {Object} player - Player instance
+	 * @param {object} player - Player instance
 	 */
 	pause( player ) {
 		player.pause();
@@ -502,29 +504,28 @@ export default class Audio {
 	 * @function mute
 	 * mute the player instance
 	 *
-	 * @param {Object} player - Player instance
+	 * @param {object} player - Player instance
 	 */
 	mute( player ) {
-
-		// Toggle the muted setting
-		player.muted = ! player.muted;
+		if ( player.muted ) {
+			this.volume( player, this.cache.volume );
+			player.muted = false;
+		} else {
+			this.cache.volume = this.getCurrentVolume( player );
+			this.volume( player, 0 );
+			player.muted = true;
+		}
 	}
 
 	/**
 	 * @function stop
 	 * stop the player instance
 	 *
-	 * @param {Object} player - Player instance
+	 * @param {object} player - Player instance
 	 */
 	stop( player ) {
-
-		// Must choose pause, no stop API
 		player.pause();
-
-		// Reset time
 		this.currentTime( player, 0 );
-
-		// Custom callback handler
 		this.customCallBackHandler( 'onstop' )( player );
 	}
 
@@ -532,7 +533,7 @@ export default class Audio {
 	 * @function addTextTrack
 	 * add a text track to a specified element
 	 *
-	 * @param {Object} player - Player instance
+	 * @param {object} player - Player instance
 	 * @param {string} kind - subtitles|caption|descriptions|chapters|metadata
 	 * @param {string} label - used to identify the track
 	 * @param {string} language - two letter language code
@@ -550,35 +551,25 @@ export default class Audio {
 	 * @returns {object|false} - custom button element or false
 	 */
 	buttonFactory ( tag ) {
-
-		// just be sure the required settings exists
-		if ( !this.settings.labels || !this.settings.labels[tag] ) {
+		const label = this.settings[`${tag}Label`];
+		if ( !label ) {
 			this.log( 'This plugin requires settings.labels. Be sure you have not accidentally removed the built in presets.', 'error' );
 			return false;
 		}
 
-		// make button
 		const makeButton = document.createElement( 'button' );
-
-		// place label setting as label
-		const text = document.createTextNode( this.settings.labels[tag] );
-
-		// build out component
+		const text = document.createTextNode( label );
 		makeButton.appendChild( text );
-
-		// setup data-player-action for binding purposes
 		makeButton.setAttribute( 'data-player-action', tag );
-
-		// add classname BEM style
 		makeButton.setAttribute( 'class', `${this.settings.name}__${tag}` );
 
-		// return
 		return makeButton;
 	}
 
 	/**
 	 * @function volumeFactory
 	 * build volume slider control
+	 *
 	 * @returns {object} Volume element
 	 */
 	volumeFactory () {
@@ -599,7 +590,7 @@ export default class Audio {
 
 		// build label
 		const label = document.createElement( 'label' );
-		const text = document.createTextNode( this.settings.labels['volume'] );
+		const text = document.createTextNode( this.settings.volumeLabel );
 		label.appendChild( text );
 		label.setAttribute( 'for', uid );
 		label.appendChild( input );
@@ -626,7 +617,7 @@ export default class Audio {
 
 		// build label
 		const label = document.createElement( 'label' );
-		const text = document.createTextNode( this.settings.labels[timerType] );
+		const text = document.createTextNode( this.settings[`${timerType}Label`] );
 		label.appendChild( text );
 		label.setAttribute( 'for', uid );
 		label.appendChild( input );
@@ -636,7 +627,6 @@ export default class Audio {
 	/**
 	 * @function appendTemplate
 	 * append markup to audio controls container
-	 *
 	 */
 	appendTemplate ( element, template ) {
 		let audioContainer = element.querySelector( `${this.settings.className}__controls` );
