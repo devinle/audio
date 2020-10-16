@@ -21,7 +21,7 @@ export default class Audio {
 	 */
 	constructor ( selector, options = {} ) {
 
-		// Exit if element not provided
+		// selector of class string required
 		if (
 			( ! selector && 'string' !== typeof selector ) ||
 			0 > selector.indexOf( '.' )
@@ -32,6 +32,28 @@ export default class Audio {
 
 		// Set prefix for logging
 		this.prefix = '@10up/Audio';
+
+		// list of supported native audio events
+		this.supportedEvents = [
+			'play',
+			'pause',
+			'stop',
+			'error',
+			'loadstart',
+			'ended',
+			'playing',
+			'progress',
+			'seeking',
+			'seeked',
+			'timeupdate',
+			'volumechange',
+		];
+
+		// produce callbacks from supported events
+		this.supportedCallbacks = this.supportedEvents.reduce( ( map, obj ) => {
+			map[`on${obj}`] = null;
+			return map;
+		}, {} );
 
 		// Merge settings and options
 		this.settings = {
@@ -44,24 +66,13 @@ export default class Audio {
 			volumeLabel: 'Volume',
 			currentTimeLabel: 'Current Time',
 			totalTimeLabel: 'Total Time',
-			onloadstart: null,
-			onplay: null,
-			onpause: null,
-			onstop: null,
-			onerror: null,
-			onended: null,
-			onplaying: null,
-			onprogress: null,
-			onseeking: null,
-			onseeked: null,
-			ontimeupdate: null,
-			onvolumechange: null,
 			showMute: true,
 			showStop: true,
 			showTimer: true,
 			showVolume: true,
 			debug: false, // set true for console logging
 			localStorage: true, // offline mode
+			...this.supportedCallbacks,
 			...options,
 		};
 
@@ -70,21 +81,6 @@ export default class Audio {
 
 		// Reference local storage
 		this.localStorage = this.settings.localStorage && window.localStorage || null;
-
-		// list of supported native audio events
-		this.supportedEvents = [
-			'loadstart',
-			'ended',
-			'pause',
-			'play',
-			'playing',
-			'progress',
-			'seeking',
-			'seeked',
-			'timeupdate',
-			'volumechange',
-			'error'
-		];
 
 		// Initialize
 		this.initialize( selector );
@@ -136,9 +132,17 @@ export default class Audio {
 				this.log( 'No native <audio> element found.', 'error' );
 				continue;
 			}
-			this.addCustomControls( elements[i], player );
-			this.delegateCustomControlsListeners( elements[i], player );
-			this.bindCustomCallbacks( elements[i], player );
+
+			// add custom control buttons
+			this.addCustomAudioControls( elements[i], player );
+
+			// add listeners to allow custom controls to interface with audio
+			this.addEventListenersToCustomControls( elements[i], player );
+
+			// enable custom callbacks on supported native audio events
+			this.bindCustomCallbacksToNativeAudioEvents( elements[i], player );
+
+			// attempt to load from local storage
 			player.addEventListener( 'loadstart', () => this.maybeInitFromStorage( player ) );
 		}
 	}
@@ -148,8 +152,7 @@ export default class Audio {
 	 * @param {object} element - custom audio element
 	 */
 	addPlayButton( element ) {
-		const templatePlay = this.buttonFactory( 'play' );
-		templatePlay && this.appendTemplate( element, templatePlay );
+		this.appendTemplate( element, this.buttonFactory( 'play' ) );
 	}
 
 	/**
@@ -157,8 +160,7 @@ export default class Audio {
 	 * @param {object} element - custom audio element
 	 */
 	addPauseButton( element ) {
-		const templatePause = this.buttonFactory( 'pause' );
-		templatePause && this.appendTemplate( element, templatePause );
+		this.appendTemplate( element, this.buttonFactory( 'pause' ) );
 	}
 
 	/**
@@ -167,8 +169,7 @@ export default class Audio {
 	 */
 	maybeAddVolumeButton( element ) {
 		if( this.settings.showVolume ) {
-			const templateVolume = this.volumeFactory();
-			templateVolume && this.appendTemplate( element, templateVolume );
+			this.appendTemplate( element, this.volumeFactory() );
 		}
 	}
 
@@ -178,8 +179,7 @@ export default class Audio {
 	 */
 	maybeAddStopButton( element ) {
 		if( this.settings.showStop ) {
-			const templateStop = this.buttonFactory( 'stop' );
-			templateStop && this.appendTemplate( element, templateStop );
+			this.appendTemplate( element, this.buttonFactory( 'stop' ) );
 		}
 	}
 
@@ -189,8 +189,7 @@ export default class Audio {
 	 */
 	maybeAddMuteButton( element ) {
 		if( this.settings.showMute ) {
-			const templateMute = this.buttonFactory( 'mute' );
-			templateMute && this.appendTemplate( element, templateMute );
+			this.appendTemplate( element, this.buttonFactory( 'mute' ) );
 		}
 	}
 	/**
@@ -199,22 +198,19 @@ export default class Audio {
 	 */
 	maybeAddTimer( element ) {
 		if( this.settings.showTimer ) {
-			const currentTimeTemplate = this.timerFactory( 'currentTime' );
-			currentTimeTemplate && this.appendTemplate( element, currentTimeTemplate );
-
-			const totalTimeTemplate = this.timerFactory( 'totalTime' );
-			totalTimeTemplate && this.appendTemplate( element, totalTimeTemplate );
+			this.appendTemplate( element, this.timerFactory( 'currentTime' ) );
+			this.appendTemplate( element, this.timerFactory( 'totalTime' ) );
 		}
 	}
 
 	/**
-	 * @function addCustomControls
-	 * Customize the UI controls of the audio player
+	 * @function addCustomAudioControls
+	 * Add custom audio controls to interface with the Audio component
 	 *
 	 * @param {object} element - container housing <audio> player
-	 * @param {object} player - Player instance
+	 * @param {object} player - player instance
 	 */
-	addCustomControls( element, player ) {
+	addCustomAudioControls( element, player ) {
 
 		// Hide native controls
 		player.removeAttribute( 'controls' );
@@ -226,19 +222,17 @@ export default class Audio {
 		this.maybeAddMuteButton( element );
 		this.maybeAddVolumeButton( element );
 		this.maybeAddTimer( element );
-
 	}
 
 	/**
-	 * @function delegateCustomControlsListeners
-	 * Delegates actions by listening to each player instance's container.
-	 * If the target action method exists, invoke. This sets up the audio container
-	 * as the event delegator.
+	 * @function addEventListenersToCustomControls
+	 * Custom controls require handlers. This delegates listeners to the main
+	 * audio container that wraps the custom controls.
 	 *
 	 * @param {object} element - container housing <audio> player
 	 * @param {object} player - <audio> player inside of the container
 	 */
-	delegateCustomControlsListeners( element, player ) {
+	addEventListenersToCustomControls( element, player ) {
 		element.addEventListener( 'click', e => {
 			const action = e.target.getAttribute( 'data-player-action' );
 			if (
@@ -252,13 +246,13 @@ export default class Audio {
 	}
 
 	/**
-	 * @function bindCustomCallbacks
-	 * Bind native audio element events to custom callbacks.
+	 * @function bindCustomCallbacksToNativeAudioEvents
+	 * Enables custom callback listeners for native audio events
 	 *
 	 * @param {object} element - container housing <audio> player
-	 * @param {object} player - Player instance
+	 * @param {object} player - player instance
 	 */
-	bindCustomCallbacks( element, player ) {
+	bindCustomCallbacksToNativeAudioEvents( element, player ) {
 
 		// loop through supported events
 		for( let i = 0, lng = this.supportedEvents.length, fn = null; i < lng; i++ ) {
@@ -271,7 +265,7 @@ export default class Audio {
 						break;
 
 					case 'volumechange':
-						fn = e => this.volumechangeHandler( element, e );
+						fn = e => this.volumechangeHandler( element, player, e );
 						break;
 
 					default:
@@ -368,33 +362,84 @@ export default class Audio {
 	}
 
 	/**
+	 * Used to calculate hours from seconds
+	 * @param {int} time - seconds
+	 */
+	getHours( time ) {
+		if ( 3600 <= time ) {
+			return time / 3600;
+		}
+		return false;
+	}
+
+	/**
+	 * Used to calculate minutes from seconds
+	 * @param {int} time - seconds
+	 */
+	getMinutes( time ) {
+		if ( 60 <= time ) {
+			return time / 60;
+		}
+		return false;
+	}
+
+	/**
+	 * Used to return time string hh:mm:ss
+	 * @param {int} time - time in seconds
+	 * @returns {string} - {hh:}mm:ss
+	 */
+	getTimeFormat( time ) {
+
+		// initialize hours, minutes, seconds
+		let hoursPassed = this.getHours( time ) || '';
+		let minutesPassed;
+		let secondsPassed;
+
+		// minutes and seconds
+		if ( hoursPassed ) {
+			hoursPassed = `${Math.floor( hoursPassed )}:`;
+			minutesPassed = Math.floor( this.getMinutes( time % 3600 ) ) || '';
+			secondsPassed = Math.floor( time % 3600 % 60 );
+		} else {
+			minutesPassed = Math.floor( this.getMinutes( time ) ) || '';
+			secondsPassed = Math.floor( time % 60 );
+		}
+
+		// prefixes '0' if required
+		minutesPassed = hoursPassed ? `0${minutesPassed}` : minutesPassed;
+		secondsPassed = 10 > secondsPassed ? `:0${secondsPassed}` : `:${secondsPassed}`;
+
+		// return literal
+		return `${hoursPassed}${minutesPassed}${secondsPassed}`;
+	}
+
+	/**
 	 * @function timeupdateHandler
 	 * Handle the timeupdate event
 	 *
 	 * @param {object} element - Player container
-	 * @param {object} player - Native Player instance
+	 * @param {object} player - Native player instance
 	 */
 	timeupdateHandler( element, player ) {
 		this.saveToStorage( player );
 
-		const currentTime = this.getCurrentTime( player );
-		const duration = this.getDuration( player );
+		const currentTimeInSeconds = this.getCurrentTime( player );
+		const currentTimeFormat = this.getTimeFormat( currentTimeInSeconds );
+		const totalTimeInSeconds = this.getDuration( player );
+		const totalTimeFormat = this.getTimeFormat( totalTimeInSeconds );
 
 		const currentTimeElement = element.querySelector( `${this.settings.className}__currentTime` );
-		if ( currentTimeElement ) {
-			const minutes = Math.floor( currentTime / 60 );
-			const seconds = Math.floor( currentTime - minutes * 60 );
-			currentTimeElement.value = `${minutes}:${seconds}`;
+		if( currentTimeElement ) {
+			currentTimeElement.value = currentTimeFormat;
 		}
 
-		const totalTime = element.querySelector( `${this.settings.className}__totalTime` );
-		if ( totalTime ) {
-			const dMinutes = Math.floor( duration / 60 );
-			const dSeconds = Math.floor( duration - dMinutes * 60 );
-			totalTime.value = `${dMinutes}:${dSeconds}`;
+		const totalTimeElement = element.querySelector( `${this.settings.className}__totalTime` );
+		if( totalTimeElement ) {
+			totalTimeElement.value = totalTimeFormat;
 		}
 
-		this.customCallBackHandler( 'ontimeupdate' );
+		// invoke custom callback
+		this.customCallBackHandler( 'ontimeupdate', player );
 		this.log( `time updated ${this.getCurrentTime( player )}` );
 	}
 
@@ -402,10 +447,11 @@ export default class Audio {
 	 * @function volumechangeHandler
 	 * Handle the volume event
 	 *
-	 * @param {object} element - Player instance container
+	 * @param {object} element - player instance container
+	 * @param {object} player - native player instance
 	 * @param {object} event - Event object
 	 */
-	volumechangeHandler( element, event ) {
+	volumechangeHandler( element, player, event ) {
 		const { volume = null } = event.target;
 		if ( ! volume ) return;
 
@@ -414,7 +460,8 @@ export default class Audio {
 		if ( !volumeSlider ) return;
 		volumeSlider.value = volume;
 
-		this.customCallBackHandler( 'onvolumechange' );
+		// invoke custom callback
+		this.customCallBackHandler( 'onvolumechange' )( player );
 		this.log( `volume updated ${volume}` );
 	}
 
@@ -422,7 +469,7 @@ export default class Audio {
 	 * @function getDuration
 	 * get duration of player instance
 	 *
-	 * @param {object} player - Player instance
+	 * @param {object} player - player instance
 	 */
 	getDuration( player ) {
 		return player.duration;
@@ -432,7 +479,7 @@ export default class Audio {
 	 * @function getCurrentTime
 	 * get currentTime of player instance
 	 *
-	 * @param {object} player - Player instance
+	 * @param {object} player - player instance
 	 */
 	getCurrentTime( player ) {
 		return player.currentTime;
@@ -462,7 +509,7 @@ export default class Audio {
 	 * @function currentTime
 	 * set player instance currentTime
 	 *
-	 * @param {object} player - Player instance
+	 * @param {object} player - player instance
 	 * @param {number} value - Time in seconds to set player to
 	 */
 	currentTime( player, value = 0 ) {
@@ -473,7 +520,7 @@ export default class Audio {
 	 * @function volume
 	 * set player instance volume
 	 *
-	 * @param {object} player - Player instance
+	 * @param {object} player - player instance
 	 * @param {float} value - Volume level 0.0 - 1.0
 	 */
 	volume( player, value = 0.5 ) {
@@ -484,7 +531,7 @@ export default class Audio {
 	 * @function play
 	 * play the player instance
 	 *
-	 * @param {object} player - Player instance
+	 * @param {object} player - player instance
 	 */
 	play( player ) {
 		player.play();
@@ -494,7 +541,7 @@ export default class Audio {
 	 * @function pause
 	 * pause the player instance
 	 *
-	 * @param {object} player - Player instance
+	 * @param {object} player - player instance
 	 */
 	pause( player ) {
 		player.pause();
@@ -504,7 +551,7 @@ export default class Audio {
 	 * @function mute
 	 * mute the player instance
 	 *
-	 * @param {object} player - Player instance
+	 * @param {object} player - player instance
 	 */
 	mute( player ) {
 		if ( player.muted ) {
@@ -521,7 +568,7 @@ export default class Audio {
 	 * @function stop
 	 * stop the player instance
 	 *
-	 * @param {object} player - Player instance
+	 * @param {object} player - player instance
 	 */
 	stop( player ) {
 		player.pause();
@@ -533,7 +580,7 @@ export default class Audio {
 	 * @function addTextTrack
 	 * add a text track to a specified element
 	 *
-	 * @param {object} player - Player instance
+	 * @param {object} player - player instance
 	 * @param {string} kind - subtitles|caption|descriptions|chapters|metadata
 	 * @param {string} label - used to identify the track
 	 * @param {string} language - two letter language code
@@ -602,9 +649,10 @@ export default class Audio {
 	 * build timer display
 	 *
 	 * @param {string} timerType - Current or Duration
+	 * @param {int} value - default value
 	 * @returns {object} Volume element
 	 */
-	timerFactory ( timerType ) {
+	timerFactory ( timerType, value = 0 ) {
 
 		// generate a unique id
 		const uid = `timer-${this.uid()}`;
@@ -614,6 +662,7 @@ export default class Audio {
 		input.setAttribute( 'id', uid );
 		input.setAttribute( 'type', 'text' );
 		input.setAttribute( 'class', `${this.settings.name}__${timerType}` );
+		input.value = value;
 
 		// build label
 		const label = document.createElement( 'label' );
