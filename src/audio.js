@@ -64,20 +64,19 @@ export default class Audio {
 			pauseLabel: 'Pause',
 			muteLabel: 'Mute',
 			volumeLabel: 'Volume',
+			scrubberLabel: 'Scrub Timeline',
 			currentTimeLabel: 'Current Time',
 			totalTimeLabel: 'Total Time',
 			showMute: true,
 			showStop: true,
 			showTimer: true,
 			showVolume: true,
+			showScrubber: true,
 			debug: false, // set true for console logging
 			localStorage: true, // offline mode
 			...this.supportedCallbacks,
 			...options,
 		};
-
-		// cache
-		this.cache = {};
 
 		// Reference local storage
 		this.localStorage = this.settings.localStorage && window.localStorage || null;
@@ -142,8 +141,23 @@ export default class Audio {
 			// enable custom callbacks on supported native audio events
 			this.bindCustomCallbacksToNativeAudioEvents( elements[i], player );
 
-			// attempt to load from local storage
-			player.addEventListener( 'loadstart', () => this.maybeInitFromStorage( player ) );
+			// fires when loading has begun
+			player.addEventListener( 'loadstart', () => {
+
+				// preset volume
+				this.volume( player );
+
+				// attempt to load from local storage
+				this.maybeInitFromStorage( player );
+			} );
+
+			// fires when we know duration
+			player.addEventListener( 'durationchange', () => {
+
+				// update timing
+				this.timeupdateHandler( elements[i], player );
+			} );
+
 		}
 	}
 
@@ -202,6 +216,15 @@ export default class Audio {
 			this.appendTemplate( element, this.timerFactory( 'totalTime' ) );
 		}
 	}
+	/**
+	 * Maybe add scrubber
+	 * @param {object} element - custom audio element
+	 */
+	maybeAddScrubber( element ) {
+		if ( this.settings.showScrubber ) {
+			this.appendTemplate( element, this.scrubberFactory() );
+		}
+	}
 
 	/**
 	 * @function addCustomAudioControls
@@ -222,6 +245,7 @@ export default class Audio {
 		this.maybeAddMuteButton( element );
 		this.maybeAddVolumeButton( element );
 		this.maybeAddTimer( element );
+		this.maybeAddScrubber( element );
 	}
 
 	/**
@@ -298,7 +322,9 @@ export default class Audio {
 		const cache = this.localStorage.getItem( currentSrc );
 
 		// If no cache exit
-		if ( ! cache ) return;
+		if ( ! cache ) {
+			this.saveToStorage( player );
+		}
 
 		// Destructure values from cache
 		const {
@@ -421,8 +447,6 @@ export default class Audio {
 	 * @param {object} player - Native player instance
 	 */
 	timeupdateHandler( element, player ) {
-		this.saveToStorage( player );
-
 		const currentTimeInSeconds = this.getCurrentTime( player );
 		const currentTimeFormat = this.getTimeFormat( currentTimeInSeconds );
 		const totalTimeInSeconds = this.getDuration( player );
@@ -437,6 +461,14 @@ export default class Audio {
 		if( totalTimeElement ) {
 			totalTimeElement.value = totalTimeFormat;
 		}
+
+		const scrubberElement = element.querySelector( `${this.settings.className}__scrubber` );
+		if ( scrubberElement ) {
+			scrubberElement.value = Math.floor( currentTimeInSeconds );
+			scrubberElement.setAttribute( 'max', Math.floor( totalTimeInSeconds ) );
+		}
+
+		this.saveToStorage( player );
 
 		// invoke custom callback
 		this.customCallBackHandler( 'ontimeupdate', player );
@@ -538,6 +570,17 @@ export default class Audio {
 	}
 
 	/**
+	 * @function seeking
+	 * play the player instance
+	 *
+	 * @param {object} player - player instance
+	 * @param {int} value - value from seek control
+	 */
+	seeking( player, value ) {
+		player.currentTime = value;
+	}
+
+	/**
 	 * @function pause
 	 * pause the player instance
 	 *
@@ -554,14 +597,7 @@ export default class Audio {
 	 * @param {object} player - player instance
 	 */
 	mute( player ) {
-		if ( player.muted ) {
-			this.volume( player, this.cache.volume );
-			player.muted = false;
-		} else {
-			this.cache.volume = this.getCurrentVolume( player );
-			this.volume( player, 0 );
-			player.muted = true;
-		}
+		player.muted = !player.muted;
 	}
 
 	/**
@@ -662,11 +698,41 @@ export default class Audio {
 		input.setAttribute( 'id', uid );
 		input.setAttribute( 'type', 'text' );
 		input.setAttribute( 'class', `${this.settings.name}__${timerType}` );
+		input.setAttribute( 'tabindex', '-1' );
 		input.value = value;
 
 		// build label
 		const label = document.createElement( 'label' );
 		const text = document.createTextNode( this.settings[`${timerType}Label`] );
+		label.appendChild( text );
+		label.setAttribute( 'for', uid );
+		label.appendChild( input );
+		return label;
+	}
+
+	/**
+	 * @function scrubberFactory
+	 * build scrubber control
+	 *
+	 * @returns {object} Scrubber element
+	 */
+	scrubberFactory() {
+
+		// generate a unique id
+		const uid = `scrubber-${this.uid()}`;
+
+		// build input
+		const input = document.createElement( 'input' );
+		input.setAttribute( 'id', uid );
+		input.setAttribute( 'data-player-action', 'seeking' );
+		input.setAttribute( 'type', 'range' );
+		input.setAttribute( 'min', '0' );
+		input.setAttribute( 'step', '1' );
+		input.setAttribute( 'class', `${this.settings.name}__scrubber` );
+
+		// build label
+		const label = document.createElement( 'label' );
+		const text = document.createTextNode( this.settings.scrubberLabel );
 		label.appendChild( text );
 		label.setAttribute( 'for', uid );
 		label.appendChild( input );
