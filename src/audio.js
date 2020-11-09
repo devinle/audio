@@ -110,7 +110,7 @@ export default class Audio {
 	}
 
 	/**
-	 * initialization of player(s)–each player containing the selector class
+	 * Initialization of player(s)–each player containing the selector class
 	 * will pass through this initialize method
 	 *
 	 * @returns {null}
@@ -141,7 +141,8 @@ export default class Audio {
 	}
 
 	/**
-	 * add a play button
+	 * Add a play button
+	 *
 	 * @param {object} element - custom audio element
 	 */
 	addPlayButton( element ) {
@@ -149,7 +150,8 @@ export default class Audio {
 	}
 
 	/**
-	 * add a pause button
+	 * Add a pause button
+	 *
 	 * @param {object} element - custom audio element
 	 */
 	addPauseButton( element ) {
@@ -157,7 +159,8 @@ export default class Audio {
 	}
 
 	/**
-	 * maybe add a volume button
+	 * Maybe add a volume button
+	 *
 	 * @param {object} element - custom audio element
 	 * @param {object} player - player instance
 	 */
@@ -169,13 +172,14 @@ export default class Audio {
 			player.addEventListener( 'loadstart', () => this.volume( player ) );
 
 			// volume change listener
-			player.addEventListener( 'volumechange', ( e ) => this.volumechangeHandler( element, player, e ) );
+			player.addEventListener( 'volumechange', ( e ) => this.volumechangeHandler( element, e ) );
 
 		}
 	}
 
 	/**
-	 * maybe add a stop button
+	 * Maybe add a stop button
+	 *
 	 * @param {object} element - custom audio element
 	 */
 	maybeAddStopButton( element ) {
@@ -185,7 +189,8 @@ export default class Audio {
 	}
 
 	/**
-	 * maybe add a mute button
+	 * Maybe add a mute button
+	 *
 	 * @param {object} element - custom audio element
 	 */
 	maybeAddMuteButton( element ) {
@@ -194,7 +199,8 @@ export default class Audio {
 		}
 	}
 	/**
-	 * maybe add timer
+	 * Maybe add timer
+	 *
 	 * @param {object} element - custom audio element
 	 * @param {object} player - player instance
 	 */
@@ -210,8 +216,10 @@ export default class Audio {
 			player.addEventListener( 'timeupdate', () => this.timeupdateHandler( element, player ) );
 		}
 	}
+
 	/**
-	 * maybe add scrubber
+	 * Maybe add scrubber
+	 *
 	 * @param {object} element - custom audio element
 	 */
 	maybeAddScrubber( element ) {
@@ -275,7 +283,7 @@ export default class Audio {
 	}
 
 	/**
-	 * This custom player provides an API based on the supported native events.
+	 * Provides an API based on the supported native events.
 	 * This method adds the 'on' callbacks and binds them to the supported native events
 	 *
 	 * @param {object} element - container housing <audio> player
@@ -287,7 +295,10 @@ export default class Audio {
 		for( let i = 0, lng = this.supportedNativeEvents.length; i < lng; i++ ) {
 
 			// if there is a registered custom callback, bind it to its native event
-			if ( 'undefined' !== typeof this[`on${this.supportedNativeEvents[i]}`] ) {
+			if (
+				'undefined' !== typeof this[`on${this.supportedNativeEvents[i]}`] &&
+				'function' === typeof this[`on${this.supportedNativeEvents[i]}`]
+			) {
 
 				player.addEventListener(
 					this.supportedNativeEvents[i],
@@ -298,7 +309,7 @@ export default class Audio {
 	}
 
 	/**
-	 * Used to fetch and set player instance values from local storage.
+	 * Fetch and set player instance values from local storage.
 	 * Data is saved to the audio src key
 	 *
 	 * @param {object} player - <audio> player inside of the container
@@ -350,12 +361,7 @@ export default class Audio {
 		// Exit if no eventName provided
 		if ( ! eventName || 'string' !== typeof eventName ) return;
 
-		return player =>
-			(
-				this.settings[ eventName ] &&
-				'function' === typeof this.settings[ eventName ] &&
-				this.settings[ eventName ]( player )
-			);
+		return player => this.settings[ eventName ]( player );
 	}
 
 	/**
@@ -378,6 +384,7 @@ export default class Audio {
 
 	/**
 	 * Used to calculate hours from seconds
+	 *
 	 * @param {int} time - seconds
 	 */
 	getHours( time ) {
@@ -389,6 +396,7 @@ export default class Audio {
 
 	/**
 	 * Used to calculate minutes from seconds
+	 *
 	 * @param {int} time - seconds
 	 */
 	getMinutes( time ) {
@@ -400,6 +408,7 @@ export default class Audio {
 
 	/**
 	 * Used to return time string hh:mm:ss
+	 *
 	 * @param {int} time - time in seconds
 	 * @returns {string} - {hh:}mm:ss
 	 */
@@ -464,10 +473,9 @@ export default class Audio {
 	 * Handle the volume event
 	 *
 	 * @param {object} element - player instance container
-	 * @param {object} player - native player instance
 	 * @param {object} event - event object
 	 */
-	volumechangeHandler( element, player, event ) {
+	volumechangeHandler( element, event ) {
 		const { volume = null } = event.target;
 		if ( ! volume ) return;
 
@@ -480,7 +488,7 @@ export default class Audio {
 	}
 
 	/**
-	 * get duration of player instance
+	 * Get duration of player instance
 	 *
 	 * @param {object} player - player instance
 	 */
@@ -489,7 +497,7 @@ export default class Audio {
 	}
 
 	/**
-	 * get currentTime of player instance
+	 * Get currentTime of player instance
 	 *
 	 * @param {object} player - player instance
 	 */
@@ -498,7 +506,7 @@ export default class Audio {
 	}
 
 	/**
-	 * get volume of player instance
+	 * Get volume of player instance
 	 *
 	 * @param {object} player
 	 */
@@ -507,7 +515,7 @@ export default class Audio {
 	}
 
 	/**
-	 * check if player paused
+	 * Check if player paused
 	 *
 	 * @param {object} player
 	 */
@@ -516,7 +524,7 @@ export default class Audio {
 	}
 
 	/**
-	 * set player instance currentTime
+	 * Set player instance currentTime
 	 *
 	 * @param {object} player - player instance
 	 * @param {number} value - Time in seconds to set player to
@@ -526,17 +534,18 @@ export default class Audio {
 	}
 
 	/**
-	 * set player instance volume
+	 * Set player instance volume
 	 *
 	 * @param {object} player - player instance
 	 * @param {float} value - Volume level 0.0 - 1.0
 	 */
 	volume( player, value = 0.5 ) {
+		console.log( value );
 		player.volume = value;
 	}
 
 	/**
-	 * play the player instance
+	 * Play the player instance
 	 *
 	 * @param {object} player - player instance
 	 */
@@ -545,7 +554,7 @@ export default class Audio {
 	}
 
 	/**
-	 * play the player instance
+	 * Seeking the player instance
 	 *
 	 * @param {object} player - player instance
 	 * @param {int} value - value from seek control
@@ -576,7 +585,7 @@ export default class Audio {
 	}
 
 	/**
-	 * pause the player instance
+	 * Pause the player instance
 	 *
 	 * @param {object} player - player instance
 	 */
@@ -585,7 +594,7 @@ export default class Audio {
 	}
 
 	/**
-	 * mute the player instance
+	 * Mute the player instance
 	 *
 	 * @param {object} player - player instance
 	 */
@@ -597,20 +606,26 @@ export default class Audio {
 	}
 
 	/**
-	 * stop the player instance, not native to the audio component
-	 * and so, requires a pause, and reset to the player. As well,
-	 * requires adding the callback handler
+	 * Stop the player instance, not native to html audio component
+	 * and so, requires a pause, and reset to the player
+	 * also, requires adding the callback handler
 	 *
 	 * @param {object} player - player instance
 	 */
 	stop( player ) {
 		player.pause();
 		this.currentTime( player, 0 );
-		this.customCallBackHandler( 'onstop' )( player );
+
+		if(
+			this.settings[ 'onstop' ] &&
+			'function' === typeof this.settings[ 'onstop' ]
+		) {
+			this.customCallBackHandler( 'onstop' )( player );
+		}
 	}
 
 	/**
-	 * add a text track to a specified element
+	 * Add a text track to a specified element
 	 *
 	 * @param {object} player - player instance
 	 * @param {string} kind - subtitles|caption|descriptions|chapters|metadata
@@ -645,7 +660,7 @@ export default class Audio {
 	}
 
 	/**
-	 * build volume slider control
+	 * Build volume slider control
 	 *
 	 * @returns {object} Volume element
 	 */
@@ -675,7 +690,7 @@ export default class Audio {
 	}
 
 	/**
-	 * build timer display
+	 * Build timer display
 	 *
 	 * @param {string} timerType - Current or Duration
 	 * @param {int} value - default value
@@ -704,7 +719,7 @@ export default class Audio {
 	}
 
 	/**
-	 * build scrubber control
+	 * Build scrubber control
 	 *
 	 * @returns {object} Scrubber element
 	 */
@@ -732,7 +747,7 @@ export default class Audio {
 	}
 
 	/**
-	 * append markup to audio controls container
+	 * Append markup to audio controls container
 	 */
 	appendTemplate ( element, template ) {
 		let audioContainer = element.querySelector( `${this.className}__controls` );
