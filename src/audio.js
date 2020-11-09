@@ -31,14 +31,14 @@ export default class Audio {
 			return;
 		}
 
+		// component prefix (used when logging)
+		this.prefix = '@10up/Audio';
+
 		// store className
 		this.className = selector;
 
 		// store name
-		this.name = selector.replace( '.', '' );
-
-		// Set prefix for logging
-		this.prefix = '@10up/Audio';
+		this.name = selector.substring( 1 );
 
 		// list of supported native audio events used to define
 		// available custom callbacks
@@ -56,16 +56,8 @@ export default class Audio {
 			'volumechange',
 		];
 
-		// create available custom callbacks from supported events
-		this.supportedCallbacks = this.supportedNativeEvents.reduce( ( map, obj ) => {
-			map[`on${obj}`] = null;
-			return map;
-		}, {} );
-
 		// merge settings and options
 		this.settings = {
-			className: selector,
-			name: selector.replace( '.', '' ),
 			playLabel: 'Play',
 			stopLabel: 'Stop',
 			pauseLabel: 'Pause',
@@ -81,7 +73,6 @@ export default class Audio {
 			showScrubber: true,
 			debug: false, // set true for console logging
 			localStorage: true, // offline mode
-			...this.supportedCallbacks,
 			...options,
 		};
 
@@ -143,22 +134,9 @@ export default class Audio {
 			// add callbacks for all supported native events
 			this.addAllowedCustomCallbacks( elements[i], player );
 
-			// fires when loading has begun
-			player.addEventListener( 'loadstart', () => {
+			// attempt to load from local storage
+			player.addEventListener( 'loadedmetadata', () => this.maybeInitFromStorage( player ) );
 
-				// preset volume
-				this.volume( player );
-
-				// attempt to load from local storage
-				this.maybeInitFromStorage( player );
-			} );
-
-			// fires when we know duration
-			player.addEventListener( 'durationchange', () => {
-
-				// update timing
-				this.timeupdateHandler( elements[i], player );
-			} );
 		}
 	}
 
@@ -181,10 +159,18 @@ export default class Audio {
 	/**
 	 * maybe add a volume button
 	 * @param {object} element - custom audio element
+	 * @param {object} player - player instance
 	 */
-	maybeAddVolumeButton( element ) {
+	maybeAddVolumeButton( element, player ) {
 		if( this.settings.showVolume ) {
 			this.appendTemplate( element, this.volumeFactory() );
+
+			// set initial volume
+			player.addEventListener( 'loadstart', () => this.volume( player ) );
+
+			// volume change listener
+			player.addEventListener( 'volumechange', ( e ) => this.volumechangeHandler( element, player, e ) );
+
 		}
 	}
 
@@ -210,11 +196,18 @@ export default class Audio {
 	/**
 	 * maybe add timer
 	 * @param {object} element - custom audio element
+	 * @param {object} player - player instance
 	 */
-	maybeAddTimer( element ) {
+	maybeAddTimer( element, player ) {
 		if( this.settings.showTimer ) {
 			this.appendTemplate( element, this.timerFactory( 'currentTime' ) );
 			this.appendTemplate( element, this.timerFactory( 'totalTime' ) );
+
+			// listen for when duration is known
+			player.addEventListener( 'loadedmetadata', () => this.timeupdateHandler( element, player ) );
+
+			// listen to time changes
+			player.addEventListener( 'timeupdate', () => this.timeupdateHandler( element, player ) );
 		}
 	}
 	/**
@@ -243,8 +236,8 @@ export default class Audio {
 		this.addPauseButton( element );
 		this.maybeAddStopButton( element );
 		this.maybeAddMuteButton( element );
-		this.maybeAddVolumeButton( element );
-		this.maybeAddTimer( element );
+		this.maybeAddVolumeButton( element, player );
+		this.maybeAddTimer( element, player );
 		this.maybeAddScrubber( element );
 	}
 
@@ -291,31 +284,16 @@ export default class Audio {
 	addAllowedCustomCallbacks( element, player ) {
 
 		// loop through supported events
-		for( let i = 0, lng = this.supportedNativeEvents.length, fn = null; i < lng; i++ ) {
+		for( let i = 0, lng = this.supportedNativeEvents.length; i < lng; i++ ) {
 
-			// catch timeupdate or volumechange, else business as usual
-			switch( this.supportedNativeEvents[i] ) {
+			// if there is a registered custom callback, bind it to its native event
+			if ( 'undefined' !== typeof this[`on${this.supportedNativeEvents[i]}`] ) {
 
-					case 'timeupdate':
-						// time adds required logic, then calls exposed callback
-						fn = () => this.timeupdateHandler( element, player );
-						break;
-
-					case 'volumechange':
-						// volumechange requires unique logic, then calls exposed callback
-						fn = e => this.volumechangeHandler( element, player, e );
-						break;
-
-					default:
-						fn = () => this.customCallBackHandler( `on${this.supportedNativeEvents[i]}` )( player );
-						break;
+				player.addEventListener(
+					this.supportedNativeEvents[i],
+					() => this.customCallBackHandler( `on${this.supportedNativeEvents[i]}` )( player )
+				);
 			}
-
-			// bind native event to custom callback
-			player.addEventListener(
-				this.supportedNativeEvents[i],
-				fn
-			);
 		}
 	}
 
@@ -330,16 +308,14 @@ export default class Audio {
 		// If no local storage exit
 		if ( ! this.localStorage ) return;
 
+		// every time change, cache the player
+		player.addEventListener( 'timeupdate', () => this.saveToStorage( player ) );
+
 		// Destructure currentSrc from player instance as key ref from storage
 		const { currentSrc } = player;
 
 		// Fetch player values from localStorage
 		const cache = this.localStorage.getItem( currentSrc );
-
-		// If no cache, make initial save
-		if ( ! cache ) {
-			this.saveToStorage( player );
-		}
 
 		// Destructure values from cache
 		const {
@@ -367,7 +343,7 @@ export default class Audio {
 	 * a player parameter that is provided to each custom event handler
 	 *
 	 * @param {string} eventName - Name of event callback to trigger
-	 * @returns {function} - Callback method
+	 * @returns {undefined|function} - Callback method or undefined
 	 */
 	customCallBackHandler( eventName = null ) {
 
@@ -480,10 +456,7 @@ export default class Audio {
 			scrubberElement.setAttribute( 'max', Math.floor( totalTimeInSeconds ) );
 		}
 
-		this.saveToStorage( player );
-
 		// invoke custom callback
-		this.customCallBackHandler( 'ontimeupdate' )( player );
 		this.log( `time updated ${this.getCurrentTime( player )}` );
 	}
 
@@ -503,8 +476,6 @@ export default class Audio {
 		if ( !volumeSlider ) return;
 		volumeSlider.value = volume;
 
-		// invoke custom callback
-		this.customCallBackHandler( 'onvolumechange' )( player );
 		this.log( `volume updated ${volume}` );
 	}
 
@@ -586,18 +557,20 @@ export default class Audio {
 	/**
 	 * Scrubbing while the player is playing can fight for control
 	 * of the timeline. This alleviates the concern by pausing the playback
-	 * whenever scrubbing takes place, restoring playback if required.
+	 * whenever scrubbing takes place, then restoring playback if required
 	 *
 	 * @param {object} player - player instance
 	 */
 	maybeScrubbing( e, player ) {
 		if ( e.target.classList.contains( `${this.name}__scrubber` ) ) {
-			if ( !player.paused ) {
-				player.setAttribute( 'data-was-playing', true );
-				player.pause();
-			} else if ( player.getAttribute( 'data-was-playing' ) ) {
-				player.setAttribute( 'data-was-playing', false );
-				player.play();
+			const {type} = e;
+
+			if( 'mousedown' === type ) {
+				player.setAttribute( 'data-was-paused', player.paused );
+				this.pause( player );
+			}
+			if( 'mouseup' === type && 'false' === player.getAttribute( 'data-was-paused' ) ) {
+				this.play( player );
 			}
 		}
 	}
@@ -617,7 +590,10 @@ export default class Audio {
 	 * @param {object} player - player instance
 	 */
 	mute( player ) {
-		player.muted = !player.muted;
+		console.log( document.querySelector( '.audio__volume' ), player );
+		// document.querySelector( '.audio__volume' ).value = 0;
+		// this.volume( player, 0 );
+		// player.muted = !player.muted;
 	}
 
 	/**
