@@ -296,8 +296,8 @@ export default class Audio {
 
 			// if there is a registered custom callback, bind it to its native event
 			if (
-				'undefined' !== typeof this[`on${this.supportedNativeEvents[i]}`] &&
-				'function' === typeof this[`on${this.supportedNativeEvents[i]}`]
+				'undefined' !== typeof this.settings[`on${this.supportedNativeEvents[i]}`] &&
+				'function' === typeof this.settings[`on${this.supportedNativeEvents[i]}`]
 			) {
 
 				player.addEventListener(
@@ -540,7 +540,6 @@ export default class Audio {
 	 * @param {float} value - Volume level 0.0 - 1.0
 	 */
 	volume( player, value = 0.5 ) {
-		console.log( value );
 		player.volume = value;
 	}
 
@@ -576,7 +575,7 @@ export default class Audio {
 
 			if( 'mousedown' === type ) {
 				player.setAttribute( 'data-was-paused', player.paused );
-				this.pause( player );
+				player.pause();
 			}
 			if( 'mouseup' === type && 'false' === player.getAttribute( 'data-was-paused' ) ) {
 				this.play( player );
@@ -613,7 +612,7 @@ export default class Audio {
 	 * @param {object} player - player instance
 	 */
 	stop( player ) {
-		player.pause();
+		this.pause( player );
 		this.currentTime( player, 0 );
 
 		if(
