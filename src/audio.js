@@ -483,6 +483,7 @@ export default class Audio {
 		const volumeSlider = element.querySelector( `${this.className}__volume` );
 		if ( !volumeSlider ) return;
 		volumeSlider.value = volume;
+		volumeSlider.setAttribute( 'data-last-volume', volume );
 
 		this.log( `volume updated ${volume}` );
 	}
@@ -541,6 +542,7 @@ export default class Audio {
 	 */
 	volume( player, value = 0.5 ) {
 		player.volume = value;
+		player.muted = false;
 	}
 
 	/**
@@ -598,10 +600,25 @@ export default class Audio {
 	 * @param {object} player - player instance
 	 */
 	mute( player ) {
-		console.log( document.querySelector( '.audio__volume' ), player );
-		// document.querySelector( '.audio__volume' ).value = 0;
-		// this.volume( player, 0 );
-		// player.muted = !player.muted;
+		const volumeControl = player.parentNode.querySelector( `${this.className}__volume` );
+		const lastVolume = volumeControl.getAttribute( 'data-last-volume' );
+		let updateVolume, muted;
+
+		if ( !player.muted ) {
+			updateVolume = 0;
+			muted = true;
+		} else {
+			updateVolume = lastVolume;
+			muted = false;
+		}
+
+		this.volume( player, updateVolume );
+
+		if ( volumeControl ) {
+			volumeControl.value = updateVolume;
+		}
+
+		player.muted = muted;
 	}
 
 	/**
@@ -616,7 +633,7 @@ export default class Audio {
 		this.currentTime( player, 0 );
 
 		if(
-			this.settings[ 'onstop' ] &&
+			'undefined' !== typeof this.settings[ 'onstop' ] &&
 			'function' === typeof this.settings[ 'onstop' ]
 		) {
 			this.customCallBackHandler( 'onstop' )( player );
